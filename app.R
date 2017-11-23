@@ -596,6 +596,7 @@ server <- shinyServer(function(input, output, session) {
         Entropy = c(Group2,Group1))
       
       pd <- position_dodge(0.1) 
+      
       return({ggplot(data=dataEntropy, aes(x=Level, y=Entropy, group=Group, colour=Group)) +
           geom_line() +
           geom_errorbar(aes(ymin=len-se, ymax=len+se), width=.1) +
