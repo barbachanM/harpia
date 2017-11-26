@@ -33,7 +33,7 @@ ui <- dashboardPage(skin = "black",
                       ".csv")),
                     tags$p(), tags$hr(),
                     selectInput("selectH", label = h4("Select Entropy Level for Analysis"),
-                                choices = list("-" = 0, "H1" = 1, "H2" = 2, "H3" = 3, "H4" = 4)),
+                                choices = list("-" = 0, "H2" = 2, "H3" = 3, "H4" = 4)),
                     
                     tags$hr(),
                     
@@ -102,7 +102,7 @@ ui <- dashboardPage(skin = "black",
     ))
 
 server <- shinyServer(function(input, output, session) {
-  
+  start_time <- Sys.time()
   observeEvent(input$run,addClass(selector = "body", class = "sidebar-collapse"))
   
   
@@ -386,8 +386,8 @@ server <- shinyServer(function(input, output, session) {
   
   f2 = isolate(files2())
   print(f2)
-  EntropyDataHT = reactive({if(!is.null(f2)){
-    print("meuCacique 2")
+  EntropyDataGroup2 = reactive({if(!is.null(f2)){
+    #print("meuCacique 2")
     lof1 =  isolate(files2())  
     nf1 = isolate(nFiles2())
     
@@ -421,8 +421,8 @@ server <- shinyServer(function(input, output, session) {
     
     
   })
-  EntropyAnalysisHT = reactive({ if(!is.null(EntropyDataHT())){
-    data = EntropyDataHT()
+  EntropyAnalysisGroup2 = reactive({ if(!is.null(EntropyDataGroup2())){
+    data = EntropyDataGroup2()
     
     f1 = isolate(row.names(data$df))
     Entropy = isolate(data$df)
@@ -573,13 +573,15 @@ server <- shinyServer(function(input, output, session) {
     return(outputData)}
   })
   
+end_time <- Sys.time()
   
   Group1Data = EntropyAnalysisGroup1()
   Group2Data = EntropyAnalysisGroup2()
   
-  
+  print(end_time - start_time)
   #####$ Analysis: 
   
+  ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!!
   plot1 = reactive({
     if(!is.null(EntropyAnalysisGroup2()) & !is.null(EntropyAnalysisGroup1())){
       Group2_Data = EntropyAnalysisGroup2()
@@ -590,24 +592,73 @@ server <- shinyServer(function(input, output, session) {
       Group2 = colMeans(EntropyGroup2LM)
       Group1 = colMeans(EntropyGroup1LM)
       
+      stats = c()
+      for (level in colnames(EntropyGroup2LM)){
+        print(level)
+        
+        #print(mean(EntropyGroup2LM[[level]]))
+        print(as.numeric(sd(EntropyGroup2LM[[level]])))
+        #print(as.numeric(quantile(EntropyGroup2LM[[level]],0.75)))
+        stats = c(stats,as.numeric(sd(EntropyGroup2LM[[level]])))
+      }
+      G2Quantiles = t(matrix(stats, ncol=length(colnames(EntropyGroup2LM)), byrow=TRUE))
+      G2Quantiles = as.data.frame(G2Quantiles, stringsAsFactors=FALSE)
+      colnames(G2Quantiles) = c("SD")
+      row.names(G2Quantiles) = colnames(EntropyGroup2LM)
+      
+      stats = c()
+      for (level in colnames(EntropyGroup1LM)){
+        print(level)
+        
+        #print(mean(EntropyGroup2LM[[level]]))
+        print(as.numeric(sd(EntropyGroup1LM[[level]])))
+        #print(as.numeric(quantile(EntropyGroup2LM[[level]],0.75)))
+        stats = c(stats,as.numeric(sd(EntropyGroup1LM[[level]])))
+      }
+      G1Quantiles = t(matrix(stats, ncol=length(colnames(EntropyGroup1LM)), byrow=TRUE))
+      G1Quantiles = as.data.frame(G1Quantiles, stringsAsFactors=FALSE)
+      colnames(G1Quantiles) = c("SD")
+      row.names(G1Quantiles) = colnames(EntropyGroup1LM)
+      
+      
       dataEntropy = data.frame(
         Group = factor(c(rep("Group2",5),c(rep("Group1",5)))),
-        Level = factor(c("H0","H1","H2","H3","H4","H0","H1","H2","H3","H4"), levels=c("H0","H1","H2","H3","H4")),
-        Entropy = c(Group2,Group1))
+        Level = factor(c(rep(colnames(EntropyGroup2LM),2)), levels=c(colnames(EntropyGroup2LM))),
+        Entropy = c(Group2,Group1),
+        SD = c(G2Quantiles$SD,G1Quantiles$SD)
+       # q2 = c(G2Quantiles$Q2,G1Quantiles$Q2)
+      )
       
-      pd <- position_dodge(0.1) 
       
-      return({ggplot(data=dataEntropy, aes(x=Level, y=Entropy, group=Group, colour=Group)) +
-          geom_line() +
-          geom_errorbar(aes(ymin=len-se, ymax=len+se), width=.1) +
-          geom_point()})
+      # dataEntropy = data.frame(
+      #   Group = factor(c(rep("Group2",5),c(rep("Group1",5)))),
+      #   Level = factor(c("H0","H1","H2","H3","H4","H0","H1","H2","H3","H4"), levels=c("H0","H1","H2","H3","H4")),
+      #   Entropy = c(Group2,Group1))
+      
+      pd <- position_dodge(0.05) 
+      # 
+      return({ggplot(data=dataEntropy, aes(x=Level, y=Entropy, group=Group, colour= Group)) +
+          geom_line(aes(linetype=Group)) +
+          geom_errorbar(aes(ymin=Entropy-SD, ymax=Entropy+SD), width=.1,position=pd) +
+          scale_color_manual(values=c('gray0','gray44'))+
+          geom_point(position=pd, size=3)
+      
+      # ggplot(data, aes(x=factor(X), y=Y, colour = factor(dep_C1)))  +
+      #   geom_boxplot(outlier.size=0, fill = "white", position="identity", alpha=.5)  +
+      #   stat_summary(fun.y=median, geom="line", aes(group=factor(dep_C1)), size=2) 
+      
+      # return({ggplot(dataEntropy, aes(x=Level, y=Entropy,  group=Group, colour=Group)) + 
+      #     geom_boxplot(outlier.size=0, fill = "white", position="identity", alpha=.5)  +
+      #     stat_summary(fun.y=median, geom="line", aes(group=Group), size=2) 
+        
+        })
     }
     
   })
   output$plot1 = renderPlot({ 
     print(plot1())
   })
-  
+  ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!! ### Ready!!!
   
   output$downloadPlot1 <- downloadHandler(
     filename = function() { "EntropyAnalysis.png" },
@@ -615,7 +666,7 @@ server <- shinyServer(function(input, output, session) {
       ggsave(file, plot = plot1(), device = "png")
     })
   
-  
+  ### MEXER AQUI!
   createMLEData = reactive({
     if(!is.null(EntropyAnalysisGroup2()) & !is.null(EntropyAnalysisGroup1())){
       Group2_Data = EntropyAnalysisGroup2()
@@ -692,7 +743,11 @@ server <- shinyServer(function(input, output, session) {
       return({boxplot(Entropy ~ Genotype*Level,
                       col=c("white","lightgray"),
                       las = 2,ylab ="Entropy", 
-                      xlab ="Genotype*Level",cex.lab=1.3, cex.axis=0.6, cex.main=1.5,MLEData)})
+                      xlab ="Group and Level",cex.lab=1.3, cex.axis=0.6, cex.main=1.5,MLEData)
+        #means <- tapply(MLEData$Genotype,MLEData$Level,mean)
+        #points(means,col="red",pch=18)
+       # abline(means)
+        })
     }
     
     else(return(NULL))})
@@ -718,30 +773,13 @@ server <- shinyServer(function(input, output, session) {
       print(p)}
   })
   
-  # output$downloadPlot3 <- downloadHandler(
-  #   filename = function() {
-  #     "LMER_Plot.png"
-  #   },
-  #   content = function(file) {
-  #     file.copy("LMER_Plot.png", file, overwrite=TRUE)
-  #   }
-  # )
   
   output$downloadPlot3 <- downloadHandler(
     filename = function() { "EntropyAnalysis.png" },
     content = function(file) {
       ggsave(file, plot = plot3(), device = "png")
     })
-  
-  
-  # output$downloadPlot3 <- downloadHandler(
-  #   filename = function() { "LMER_Plot.png" },
-  #   content = function(file) {
-  #     png("LMER_Plot.png")
-  #     plot3()
-  #     dev.off()
-  #   })
-  
+
   plot4 = reactive({if(!is.null(lmerAnalysis())){
     mle = isolate(lmerAnalysis())
     return({qqnorm(resid(mle))
@@ -785,18 +823,20 @@ server <- shinyServer(function(input, output, session) {
       print(summaryMLE())
       dev.copy2pdf(file = file, width=12, height=8, out.type="pdf")
     })
-  
+
+  ## Markov Graphf
+    
   plot5 = reactive({if(!is.null(EntropyAnalysisGroup1())){
     Group1_Data = EntropyAnalysisGroup1()
-    countGroup12 = rowMeans(Group1_Data$Counts2)
+    countGroup1 = rowMeans(Group1_Data$Counts2)
     observations = c()
     for (n in alphabetH2){
       aux = c()
       call = unlist(strsplit(n,'\t', fixed=FALSE))
-      aux = rep(call,countGroup12[n])
+      aux = rep(call,countGroup1[n])
       observations = c(observations,aux)
     }
-    names(countGroup12) = alphabetH2
+    names(countGroup1) = alphabetH2
     markovModelH2 = markovchainFit(data=observations)
     tpmH2 = as.matrix(markovModelH2$estimate@transitionMatrix)
     
@@ -822,7 +862,6 @@ server <- shinyServer(function(input, output, session) {
   }
     else(stop("Upload folder") )
   })
-  
   output$plot5 = renderPlot({ 
     if(!is.null(EntropyAnalysisGroup1())){
       print(plot5())}
@@ -871,9 +910,8 @@ server <- shinyServer(function(input, output, session) {
     else(stop("Upload folder") )
     
   })
-  
   output$plot6 = renderPlot({ 
-    if(!is.null(EntropyAnalysisHT())){
+    if(!is.null(EntropyAnalysisGroup2())){
       print(plot6())}
   })
   output$downloadPlot6 <- downloadHandler(
@@ -884,38 +922,38 @@ server <- shinyServer(function(input, output, session) {
   
   
   boruta = reactive({
-    if(!is.null(EntropyAnalysisHT()) & !is.null(EntropyAnalysisGroup1()) & input$selectB != 0) {    
-      HT_Data = EntropyAnalysisHT()
+    if(!is.null(EntropyAnalysisGroup2()) & !is.null(EntropyAnalysisGroup1()) & input$selectB != 0) {    
+      Group2_Data = EntropyAnalysisGroup2()
       Group1_Data = EntropyAnalysisGroup1()
       
       if (input$selectB == 1){
         groupDataGroup1 = t(Group1_Data$F1)
         groupDataGroup1 = cbind(groupDataGroup1,rep("Group1",ncol(Group1_Data$F1)))
-        groupDataHT = t(HT_Data$F1)
-        groupDataHT = cbind(groupDataHT,rep("Group2",ncol(HT_Data$F1)))
+        groupDataGroup2 = t(Group2_Data$F1)
+        groupDataGroup2 = cbind(groupDataGroup2,rep("Group2",ncol(Group2_Data$F1)))
         
       }
       if (input$selectB == 2){
         groupDataGroup1 = t(Group1_Data$F2)
         groupDataGroup1 = cbind(groupDataGroup1,rep("Group1",ncol(Group1_Data$F2)))
-        groupDataHT = t(HT_Data$F2)
-        groupDataHT = cbind(groupDataHT,rep("Group2",ncol(HT_Data$F2)))
+        groupDataGroup2 = t(Group2_Data$F2)
+        groupDataGroup2 = cbind(groupDataGroup2,rep("Group2",ncol(Group2_Data$F2)))
         
       }
       
       if (input$selectB == 3){
         groupDataGroup1 = t(Group1_Data$F3)
         groupDataGroup1 = cbind(groupDataGroup1,rep("Group1",ncol(Group1_Data$F3)))
-        groupDataHT = t(HT_Data$F3)
-        groupDataHT = cbind(groupDataHT,rep("Group2",ncol(HT_Data$F3)))
+        groupDataGroup2 = t(Group2_Data$F3)
+        groupDataGroup2 = cbind(groupDataGroup2,rep("Group2",ncol(Group2_Data$F3)))
         
       }
       
       if (input$selectB == 4){
         groupDataGroup1 = t(Group1_Data$F4)
         groupDataGroup1 = cbind(groupDataGroup1,rep("Group1",ncol(Group1_Data$F4)))
-        groupDataHT = t(HT_Data$F4)
-        groupDataHT = cbind(groupDataHT,rep("Group2",ncol(HT_Data$F4)))
+        groupDataGroup2 = t(Group2_Data$F4)
+        groupDataGroup2 = cbind(groupDataGroup2,rep("Group2",ncol(Group2_Data$F4)))
         
       }
       
@@ -924,7 +962,7 @@ server <- shinyServer(function(input, output, session) {
       
       #print(groupDataHT)
       
-      borutaDF = rbind.data.frame(groupDataHT,groupDataGroup1)
+      borutaDF = rbind.data.frame(groupDataGroup2,groupDataGroup1)
       colnames(borutaDF)[ncol(borutaDF)] = "Group"
       #print(borutaTest)
       
